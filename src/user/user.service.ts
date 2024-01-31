@@ -84,7 +84,7 @@ export class UserService {
     }
   }
 
-  async updateUser(id: string, updateUserDto: UpdateUserDto , profileImage?: MulterFile): Promise<User> {
+  async updateUser(id: string, updateUserDto: UpdateUserDto, profileImage?: MulterFile): Promise<User> {
     try {
       const user = await this.userModel.findById(id);
 
@@ -101,6 +101,12 @@ export class UserService {
       }
 
       if (profileImage) {
+        // Remove the old image from the storage bucket
+        if (user.profileImage) {
+          await this.deleteImage(user.profileImage);
+        }
+
+        // Upload the new image and get the URL
         user.profileImage = await this.uploadProfileImage(profileImage, user.username);
       }
 
@@ -113,10 +119,19 @@ export class UserService {
   }
 
   async deleteUser(id: string): Promise<void> {
-    const result = await this.userModel.findByIdAndDelete(id);
+    try {
+      const user = await this.userModel.findByIdAndDelete(id);
 
-    if (!result) {
-      throw new NotFoundException('User not found');
+      if (!user) {
+        throw new NotFoundException('User not found');
+      }
+
+      // Delete the user's image from the storage bucket
+      if (user.profileImage) {
+        await this.deleteImage(user.profileImage);
+      }
+    } catch (error) {
+      throw error;
     }
   }
 
@@ -148,5 +163,16 @@ export class UserService {
 
     const imageUrl = `https://storage.googleapis.com/${bucketName}/${fileName}`;
     return imageUrl;
+  }
+
+  private async deleteImage(imageUrl: string): Promise<void> {
+    const storage = new Storage();
+    const bucketName = process.env.GCP_BUCKET_NAME; // Replace with your GCP bucket name
+
+    // Extract the filename from the URL
+    const fileName = imageUrl.split('/').pop();
+
+    // Delete the image from the storage bucket
+    await storage.bucket(bucketName).file(fileName).delete();
   }
 }
