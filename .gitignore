@@ -36,4 +36,3 @@ lerna-debug.log*
 
 .env
 
-GCP_BUCKET_NAME = "nestbucket1"
